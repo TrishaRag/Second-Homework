@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.18;
+
+contract ProposalContract {
+    address public owner;
+    uint256 public proposalCount;
+
+    struct Proposal {
+        string title; // Title of the proposal
+        string description; // Description of the proposal
+        uint256 approve; // Number of approve votes
+        uint256 reject; // Number of reject votes
+        uint256 pass; // Number of pass votes
+        uint256 total_vote_to_end; // When the total votes in the proposal reaches this limit, proposal ends
+        bool current_state; // This shows the current state of the proposal, meaning whether it passes or fails
+        bool is_active; // This shows if others can vote on our contract
+        mapping(address => bool) has_voted; // Tracks if an address has voted
+    }
+
+    mapping(uint256 => Proposal) public proposal_history; // Recordings of previous proposals
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only the owner can perform this action");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+        proposalCount = 0;
+    }
+
+    function createProposal(string memory _title, string memory _description, uint256 _total_vote_to_end) external onlyOwner {
+        proposalCount++;
+        Proposal storage newProposal = proposal_history[proposalCount];
+        newProposal.title = _title;
+        newProposal.description = _description;
+        newProposal.total_vote_to_end = _total_vote_to_end;
+        newProposal.is_active = true;
+    }
+
+    function vote(uint256 _proposalId, uint8 _voteType) external {
+        require(_proposalId > 0 && _proposalId <= proposalCount, "Proposal does not exist");
+        Proposal storage proposal = proposal_history[_proposalId];
+        require(proposal.is_active, "Proposal is not active");
+        require(!proposal.has_voted[msg.sender], "You have already voted");
+
+        proposal.has_voted[msg.sender] = true;
+
+        if (_voteType == 1) {
+            proposal.approve++;
+        } else if (_voteType == 2) {
+            proposal.reject++;
+        } else if (_voteType == 3) {
+            proposal.pass++;
+        } else {
+            revert("Invalid vote type");
+        }
+
+        if (proposal.approve + proposal.reject + proposal.pass >= proposal.total_vote_to_end) {
+            proposal.is_active = false;
+            proposal.current_state = (proposal.approve > proposal.reject);
+        }
+    }
+
+    function getProposal(uint256 _proposalId) external view returns (string memory, string memory, uint256, uint256, uint256, uint256, bool, bool) {
+        Proposal storage proposal = proposal_history[_proposalId];
+        return (
+            proposal.title,
+            proposal.description,
+            proposal.approve,
+            proposal.reject,
+            proposal.pass,
+            proposal.total_vote_to_end,
+            proposal.current_state,
+            proposal.is_active
+        );
+    }
+}
